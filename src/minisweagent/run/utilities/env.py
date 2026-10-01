@@ -20,6 +20,20 @@ from minisweagent import i18n
 
 _ = i18n.t
 
+# Exceptions that indicate the *primary* key is rate-limited / unreachable and
+# that retrying with a fallback key is worth attempting.
+try:
+    import litellm
+
+    _FAILOVER_EXCEPTIONS = (
+        litellm.exceptions.RateLimitError,
+        litellm.exceptions.APIConnectionError,
+        litellm.exceptions.ServiceUnavailableError,
+        litellm.exceptions.APIError,
+    )
+except Exception:  # pragma: no cover - litellm always present
+    _FAILOVER_EXCEPTIONS = ()
+
 
 def reload_dotenv(path: str | os.PathLike[str] | None = None) -> None:
     """(Re)load the global ``.env`` file with ``override=True``.
@@ -83,3 +97,53 @@ def apply_key_fallback() -> list[str]:
             os.environ[key] = fallback
             applied.append(key)
     return applied
+
+
+def has_fallback(key: str) -> bool:
+    """Whether a ``<KEY>_FALLBACK`` value is available for ``key``."""
+    return bool(os.getenv(f"{key}_FALLBACK"))
+
+
+def swap_to_fallback() -> bool:
+    """Swap every primary key that has a ``*_FALLBACK`` to the fallback value.
+
+    Returns True if at least one primary was swapped. This is the runtime
+    failover step: when the primary key is rate-limited or unreachable, we move
+    the fallback values onto the primary names so the next model call uses them.
+    """
+    swapped = False
+    candidate_keys = list(_FALLBACK_KEYS)
+    for env_key in os.environ:
+        if env_key.endswith("_API_KEY"):
+            candidate_keys.append(env_key)
+    for key in dict.fromkeys(candidate_keys):
+        fallback = os.getenv(f"{key}_FALLBACK")
+        if fallback:
+            os.environ[key] = fallback
+            os.environ.pop(f"{key}_FALLBACK", None)
+            swapped = True
+    return swapped
+
+
+def failover_model(model_config: dict | None = None) -> object | None:
+    """Rebuild the model object using the fallback key.
+
+    Call this after ``swap_to_fallback()`` (or when a primary call raised one of
+    the failover exceptions) to obtain a fresh model that uses the secondary key.
+    Returns ``None`` if no fallback is available.
+    """
+    from minisweagent.models import get_model
+
+    if model_config is None:
+        model_config = {}
+    if not (has_fallback("MSWEA_MODEL_NAME") or any(
+        k.endswith("_API_KEY") and has_fallback(k) for k in os.environ
+    )):
+        return None
+    swap_to_fallback()
+    return get_model(config=model_config)
+
+
+def is_failover_exception(exc: BaseException) -> bool:
+    """Whether ``exc`` is one we should retry against the fallback key."""
+    return isinstance(exc, _FAILOVER_EXCEPTIONS)

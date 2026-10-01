@@ -112,21 +112,28 @@ def resume_prompt() -> Path | None:
     except (OSError, ValueError):
         console.print(_("Last session had no resumable task; starting fresh.").format())
         return None
-    # Only preview/confirm when a real interactive terminal is available; in
-    # unattended runs (CI, piped stdin) we resume silently to avoid crashes.
+
     import sys
 
     interactive = bool(sys.stdin is not None and sys.stdin.isatty())
-    if interactive:
-        import json as _json
+    if not interactive:
+        # Unattended runs (CI, piped stdin): there is no one to ask, so we load
+        # the trajectory automatically to avoid stalling on a prompt.
+        return path
 
-        task_preview = ""
-        messages = traj.get("messages", [])
-        if len(messages) > 1:
-            content = messages[1].get("content", "")
-            task_preview = content if isinstance(content, str) else str(content)
-        console.print(_("Welcome back! Resuming your last unfinished task:").format())
-        console.print(f"[bold green]{task_preview[:200]}[/bold green]")
-    return path
+    # Interactive: show a preview and *ask* whether to load the trajectory file.
+    messages = traj.get("messages", [])
+    task_preview = ""
+    if len(messages) > 1:
+        content = messages[1].get("content", "")
+        task_preview = content if isinstance(content, str) else str(content)
+    console.print(_("Detected a previous session trajectory file:").format())
+    console.print(f"[bold green]{path}[/bold green]")
+    console.print(f"[bold]{task_preview[:200]}[/bold]")
+    from rich.prompt import Confirm
+
+    if Confirm.ask(_("Load this trajectory file and continue?"), default=True):
+        return path
+    return None
 
 

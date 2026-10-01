@@ -42,10 +42,35 @@
 
 - **国际化（i18n）**：零依赖的 JSON 目录方案（`minisweagent/i18n`）。启动时自动检测系统语言；默认随附中文（`zh`）目录，英文源字符串作为回退。所有面向用户的文案（横幅、提示、确认、帮助）均已本地化。
 - **`/undo` 撤回**：新增 `UndoRequested` 异常，可撤销最近一次已执行的步骤（含其计费与成本统计）并重新提示，无需重跑整个任务。
-- **会话续跑**：未显式指定任务启动时，CLI 会直接从上次未完成任务对应的轨迹文件（`last_mini_run.traj.json`）恢复——**完整对话上下文得以保留**，直接回到上次退出时的状态继续。
-- **动态 `.env` 与主副 key**：运行时重新加载全局配置；当主 key / 模型名为空时，自动使用对应的 `*_FALLBACK` 值。启动时打印当前生效的 key 值（模型名完整显示，密钥脱敏）。
+- **会话续跑**：未显式指定任务启动时，CLI 会直接从上次未完成任务对应的轨迹文件（`last_mini_run.traj.json`）恢复——检测到轨迹文件后会**询问是否加载**；确认后完整对话上下文得以保留，直接回到上次退出时的状态继续。
+- **动态 `.env` 与主副 key（运行时故障转移）**：每次启动重新加载全局配置（`.env` 的改动会在下次运行生效）；并支持**主副 key**——当主 key 被限速或不可达时，自动切换到 `*_FALLBACK` 备用 key 重试。启动时打印当前生效的 key 值（模型名完整显示，密钥脱敏）。
 - **更快启动**：在导入模型前禁用 LiteLLM 的导入期遥测，显著缩短冷启动时间（本地实测约降低 37%）。
 - 版本号提升为 **`2.4.6+mitg`**。
+
+#### 使用副 key（主副 key） / Using a fallback (secondary) key
+
+本分支支持**主副 key（运行时故障转移）**：主 key（或模型名）在启动前为空时会自动使用 `*_FALLBACK`；更重要的是，在运行期间若主 key 被**限速（RateLimit）或不可达（连接/服务错误）**，会自动切换到备用 key 并重试，无需手动干预。启动时也会打印当前实际生效的 key 值（模型名完整显示，密钥脱敏）。
+
+在全局配置文件（`~/.config/mini-swe-agent/.env`）或环境变量中设置即可：
+
+```bash
+# 主 key（优先使用）/ Primary key (used first)
+MSWEA_MODEL_NAME=openai/gpt-5.4
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+
+# 副 key（主 key 为空时自动回退；运行中被限速/不可达时也会自动切换）/ Fallback key
+MSWEA_MODEL_NAME_FALLBACK=anthropic/claude-opus-4-6
+OPENAI_API_KEY_FALLBACK=sk-yyyyyyyyyyyyyyyy
+```
+
+启动后你会看到类似输出：
+
+```text
+主密钥（MSWEA_MODEL_NAME）= openai/gpt-5.4。
+主密钥（OPENAI_API_KEY）= sk-3…5bc7。
+```
+
+也可以仅在需要时用环境变量临时切换：`export MSWEA_MODEL_NAME_FALLBACK=...`。
 
 ### 快速开始 / Getting started
 
@@ -100,10 +125,35 @@ The `mitg` fork keeps the upstream agent untouched where it already works, and a
 
 - **Internationalization (i18n).** A zero-dependency JSON-catalog system (`minisweagent/i18n`). The CLI detects the system language on startup; a Chinese (`zh`) catalog ships by default, and English strings are used verbatim as the fallback. All user-facing text (banners, prompts, confirmations, help) is localized.
 - **`/undo` — revert the last action.** A new `UndoRequested` exception lets you undo the most recently executed step (including its accounting) and re-prompt, instead of redoing the whole run.
-- **Session resume.** On launch without an explicit task, the CLI restores the last *unfinished* run directly from its trajectory file (`last_mini_run.traj.json`) — full conversation context is preserved, so you continue exactly where you left off.
-- **Dynamic `.env` + primary/fallback keys.** The global config is re-loaded at runtime, and a `*_FALLBACK` variant of any key/model name is used automatically when the primary is unset. Startup prints the active key values (model names in full; secrets masked).
+- **Session resume.** On launch without an explicit task, the CLI restores the last *unfinished* run directly from its trajectory file (`last_mini_run.traj.json`) — when a trajectory file is detected you are **asked whether to load it**; on confirmation the full conversation context is preserved, so you continue exactly where you left off.
+- **Dynamic `.env` + primary/fallback keys (runtime failover).** The global config (`.env`) is re-loaded on every launch so edits take effect on the next run, and a **primary/fallback key** setup is supported: if the primary key is rate-limited or unreachable, the agent automatically switches to the `*_FALLBACK` key and retries. Startup prints the active key values (model names in full; secrets masked).
 - **Faster startup.** LiteLLM's import-time telemetry is disabled before the model is imported, cutting cold-start time noticeably (~37% in local measurements).
 - Version is bumped to **`2.4.6+mitg`**.
+
+#### Using a fallback (secondary) key
+
+This fork supports a **primary/fallback (secondary) key** setup. If the primary key (or model name) is empty at startup it automatically uses the `*_FALLBACK` value; more importantly, during a run, if the primary key is **rate-limited or unreachable** (connection/service errors), the agent automatically switches to the fallback key and retries — no manual intervention needed. The active key values are also printed at startup (model names shown in full, secrets masked).
+
+Set them in the global config file (`~/.config/mini-swe-agent/.env`) or as environment variables:
+
+```bash
+# Primary key (used first)
+MSWEA_MODEL_NAME=openai/gpt-5.4
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+
+# Fallback key (auto-used if primary empty, or on rate-limit/unreachable at runtime)
+MSWEA_MODEL_NAME_FALLBACK=anthropic/claude-opus-4-6
+OPENAI_API_KEY_FALLBACK=sk-yyyyyyyyyyyyyyyy
+```
+
+At startup you'll see something like:
+
+```text
+Primary key (MSWEA_MODEL_NAME) = openai/gpt-5.4.
+Primary key (OPENAI_API_KEY) = sk-3…5bc7.
+```
+
+You can also switch temporarily with `export MSWEA_MODEL_NAME_FALLBACK=...`.
 
 ### Getting started
 

@@ -17,6 +17,7 @@ from minisweagent.config import builtin_config_dir, get_config_from_spec
 from minisweagent.environments import get_environment
 from minisweagent.models import get_model
 from minisweagent.run.utilities.config import configure_if_first_time
+from minisweagent.run.utilities.env import failover_model, is_failover_exception, reload_dotenv
 from minisweagent.run.utilities.session import save_session
 from minisweagent.run.utilities.startup import bootstrap, resume_prompt
 from minisweagent.utils.serialize import UNSET, recursive_merge
@@ -99,8 +100,39 @@ def main(
     })
     config = recursive_merge(*configs)
 
-    model = get_model(config=config.get("model", {}))
+    # Apply any edits made to the global .env since startup (dynamic reload), so
+    # that changing MSWEA_MODEL_NAME / keys in .env takes effect on this run even
+    # though the file was first loaded at import time.
+    reload_dotenv()
+    model_config = config.get("model", {})
+    if not model_config.get("model_name") and os.getenv("MSWEA_MODEL_NAME"):
+        # Ensure the freshly reloaded model name wins over any stale env value.
+        model_config = {**model_config, "model_name": os.getenv("MSWEA_MODEL_NAME")}
+    model = get_model(config=model_config)
     env = get_environment(config.get("environment", {}), default_type="local")
+
+    # Runtime primary/fallback failover: if the primary key is rate-limited or
+    # unreachable, transparently switch to the fallback key and retry once.
+    _original_query = model.query
+
+    def _query_with_failover(*args, **kwargs):
+        try:
+            return _original_query(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - we re-raise if no fallback
+            if is_failover_exception(exc):
+                fallback = failover_model(model_config)
+                if fallback is not None:
+                    console.print(
+                        _("[bold yellow]Primary key failed ({error}); switching to fallback key.[/bold yellow]").format(
+                            error=type(exc).__name__
+                        )
+                    )
+                    model.query = fallback.query
+                    model.config = fallback.config
+                    return fallback.query(*args, **kwargs)
+            raise
+
+    model.query = _query_with_failover
 
     # Without an explicit task, resume the last unfinished session directly from
     # its trajectory file (restoring the full conversation and continuing from
