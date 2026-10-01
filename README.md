@@ -2,22 +2,83 @@
 <a href="https://mini-swe-agent.com/latest/"><img src="https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg" alt="mini-swe-agent banner" style="height: 7em"/></a>
 </div>
 
-# The minimal AI software engineering agent — **mitg** edition
+# 极简 AI 软件工程智能体 — **mitg** 版 / The minimal AI software engineering agent — **mitg** edition
+
+> [!NOTE]
+> 本仓库是 upstream [SWE-agent/mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent) 的维护型分支（fork），在保留上游 v2 核心设计的前提下，叠加了一套面向日常使用的增强。**未被标记为 [mitg] 的内容均继承自上游。**
+>
+> This repository is a maintained fork of upstream [SWE-agent/mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent). It layers a set of everyday-use improvements on top of upstream v2 without changing its core design. Anything **not** explicitly marked **[mitg]** is inherited from upstream.
 
 📣 [mini-swe-agent now powers Ramp SWE-Bench](https://labs.ramp.com/swebench)<br/>
 📣 [mini-swe-agent beats Claude Code and Codex on DeepSWE](https://deepswe.datacurve.ai/blog#evaluation-harness)<br/>
 📣 [Run mini-swe-agent on our new & extremely challenging benchmark, ProgramBench](https://mini-swe-agent.com/latest/usage/programbench/)<br/>
-📣 **This fork (`mitg`) adds: 中文界面、会话续跑、撤回 (/undo)、动态 `.env`、主副 key、LiteLLM 启动加速。**
+📣 **[mitg] 新增：中文界面、会话续跑、撤回 (/undo)、动态 `.env`、主副 key、LiteLLM 启动加速。/ [mitg] adds Chinese UI, session resume, `/undo`, dynamic `.env`, primary/fallback keys, faster startup.**
 
 [![Docs](https://img.shields.io/badge/Docs-green?style=for-the-badge&logo=materialformkdocs&logoColor=white)](https://mini-swe-agent.com/latest/)
 [![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://join.slack.com/t/swe-bench/shared_invite/zt-36pj9bu5s-o3_yXPZbaH2wVnxnss1EkQ)
 [![PyPI - Version](https://img.shields.io/pypi/v/mini-swe-agent?style=for-the-badge&logo=python&logoColor=white&labelColor=black&color=deeppink)](https://pypi.org/project/mini-swe-agent/)
 
-> [!NOTE]
-> This is **mini-swe-agent v2 (`2.4.6+mitg`)**, a maintained fork that layers a set of
-> production-oriented improvements on top of upstream v2 without changing its core design.
-> Everything below that is not explicitly marked **[mitg]** is inherited from upstream
-> [SWE-agent/mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent).
+---
+
+## 中文简介 / Chinese overview
+
+2024 年，我们构建了 [SWE-bench](https://github.com/swe-bench/SWE-bench) 与 [SWE-agent](https://github.com/swe-agent/swe-agent)，并推动了编程智能体（coding agent）浪潮的兴起。
+
+现在我们问：**如果我们的智能体简单 100 倍，却依然表现近乎一样好呢？**
+
+`mini` 具备以下特点：
+
+- **被广泛采用**：已被 Meta、NVIDIA、Essential AI、IBM、Nelius、Anyscale、普林斯顿大学、斯坦福大学等使用。
+- **极简**：智能体核心类仅约 100 行 Python（[agent 类](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/agents/default.py)，外加少量 [环境](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/environments/local.py)、[模型](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/models/litellm_model.py) 与 [运行脚本](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/run/hello_world.py)）—— 没有花哨的依赖！
+- **高性能**：在 [SWE-bench verified](https://www.swebench.com/) 上得分 >74%；启动比 Claude Code 快得多。
+- **可部署**：支持 **本地环境**、**docker/podman**、**singularity/apptainer**、**bubblewrap**、**contree** 等。
+- **兼容性强**：通过 **litellm**、**openrouter**、**portkey** 等支持几乎所有模型，并兼容 `/completion` 与 `/response` 端点、交错思考等。
+- 由 [SWE-bench](https://swebench.com)、[SWE-agent](https://swe-agent.com) 背后的普林斯顿 & 斯坦福团队打造。
+- **经过测试**：[![Codecov](https://img.shields.io/codecov/c/github/swe-agent/mini-swe-agent?style=flat-square)](https://codecov.io/gh/SWE-agent/mini-swe-agent)
+
+### [mitg] 本分支新增了什么？ / What's new in this fork?
+
+`mitg` 分支在原有体系无明显问题的地方保持不变，仅在缺失处补充了日常使用所需的系统，且均做到最小改动、相互隔离：
+
+- **国际化（i18n）**：零依赖的 JSON 目录方案（`minisweagent/i18n`）。启动时自动检测系统语言；默认随附中文（`zh`）目录，英文源字符串作为回退。所有面向用户的文案（横幅、提示、确认、帮助）均已本地化。
+- **`/undo` 撤回**：新增 `UndoRequested` 异常，可撤销最近一次已执行的步骤（含其计费与成本统计）并重新提示，无需重跑整个任务。
+- **会话续跑**：未显式指定任务启动时，CLI 会直接从上次未完成任务对应的轨迹文件（`last_mini_run.traj.json`）恢复——**完整对话上下文得以保留**，直接回到上次退出时的状态继续。
+- **动态 `.env` 与主副 key**：运行时重新加载全局配置；当主 key / 模型名为空时，自动使用对应的 `*_FALLBACK` 值。启动时打印当前生效的 key 值（模型名完整显示，密钥脱敏）。
+- **更快启动**：在导入模型前禁用 LiteLLM 的导入期遥测，显著缩短冷启动时间（本地实测约降低 37%）。
+- 版本号提升为 **`2.4.6+mitg`**。
+
+### 快速开始 / Getting started
+
+本项目推荐使用系统已有的 **uv** 从源码安装（开发者模式）：
+
+```bash
+# 1. 克隆仓库 / Clone the repository
+git clone https://github.com/wangzheruoyun/mini-swe-agent-mitg.git
+cd mini-swe-agent-mitg
+
+# 2. 使用 uv 安装（可编辑模式）/ Install with uv (editable)
+uv pip install -e .
+
+# 3. 运行 CLI / Run the CLI
+mini
+```
+
+> 也可使用 `uv tool install . --force` 将其安装为独立工具，或参考上游文档用 `pip` 安装发布版。
+> You may also use `uv tool install . --force` to install it as a standalone tool, or install the published package via `pip` following the upstream docs.
+
+更多用法请参阅 [官方文档](https://mini-swe-agent.com/latest/)：
+
+* [快速开始](https://mini-swe-agent.com/latest/quickstart/)
+* [使用 `mini` CLI](https://mini-swe-agent.com/latest/usage/mini/)
+* [全局配置](https://mini-swe-agent.com/latest/advanced/global_configuration/)
+* [YAML 配置文件](https://mini-swe-agent.com/latest/advanced/yaml_configuration/)
+* [Cookbook 进阶](https://mini-swe-agent.com/latest/advanced/cookbook/)
+* [常见问题](https://mini-swe-agent.com/latest/faq/)
+* [参与贡献](https://mini-swe-agent.com/latest/contributing/)
+
+---
+
+## English overview
 
 In 2024, we built [SWE-bench](https://github.com/swe-bench/SWE-bench) & [SWE-agent](https://github.com/swe-agent/swe-agent) and helped kickstart the coding agent revolution.
 
@@ -26,182 +87,41 @@ We now ask: **What if our agent was 100x simpler, and still worked nearly as wel
 `mini` is
 
 - **Widely adopted**: Used by Meta, NVIDIA, Essential AI, IBM, Nebius, Anyscale, Princeton University, Stanford University, and many more.
-- **Minimal**: Just some 100 lines of python for the [agent class](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/agents/default.py) (and a bit more for the [environment](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/environments/local.py),
-[model](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/models/litellm_model.py), and [run script](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/run/hello_world.py)) — no fancy dependencies!
-- **Performant:** Scores >74% on the [SWE-bench verified benchmark](https://www.swebench.com/); starts much faster than Claude Code
-- **Deployable:** Supports **local environments**, **docker/podman**, **singularity/apptainer**, **bublewrap**, **contree**, and more
+- **Minimal**: Just some 100 lines of python for the [agent class](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/agents/default.py) (and a bit more for the [environment](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/environments/local.py), [model](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/models/litellm_model.py), and [run script](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/run/hello_world.py)) — no fancy dependencies!
+- **Performant:** Scores >74% on the [SWE-bench verified benchmark](https://www.swebench.com/); starts much faster than Claude Code.
+- **Deployable:** Supports **local environments**, **docker/podman**, **singularity/apptainer**, **bubblewrap**, **contree**, and more.
 - **Compatible:** Supports all models via **litellm**, **openrouter**, **portkey**, and more. Support for `/completion` and `/response` endpoints, interleaved thinking etc.
-- Built by the Princeton & Stanford team behind [SWE-bench](https://swebench.com), [SWE-agent](https://swe-agent.com), and more
+- Built by the Princeton & Stanford team behind [SWE-bench](https://swebench.com), [SWE-agent](https://swe-agent.com), and more.
 - **Tested:** [![Codecov](https://img.shields.io/codecov/c/github/swe-agent/mini-swe-agent?style=flat-square)](https://codecov.io/gh/SWE-agent/mini-swe-agent)
 
-<details>
+### [mitg] What's new in this fork?
 
-<summary>More motivation (for research)</summary>
+The `mitg` fork keeps the upstream agent untouched where it already works, and adds the systems that were missing for everyday use. Each addition is minimal and isolated:
 
-[SWE-agent](https://swe-agent.com/latest/) jump-started the development of AI agents in 2024. Back then, we placed a lot of emphasis on tools and special interfaces for the agent.
-However, one year later, as LMs have become more capable, a lot of this is not needed at all to build a useful agent!
-In fact, the `mini` agent
-
-- **Does not have any tools other than bash** — it doesn't even need to use the tool-calling interface of the LMs.
-  This means that you can run it with literally any model. When running in sandboxed environments you also don't need to take care
-  of installing a single package — all it needs is bash.
-- **Has a completely linear history** — every step of the agent just appends to the messages and that's it.
-  So there's no difference between the trajectory and the messages that you pass on to the LM.
-  Great for debugging & fine-tuning.
-- **Executes actions with `subprocess.run`** — every action is completely independent (as opposed to keeping a stateful shell session running).
-  This makes it trivial to execute the actions in sandboxes (literally just switch out `subprocess.run` with `docker exec`) and to
-  scale up effortlessly. Seriously, this is [a big deal](https://mini-swe-agent.com/latest/faq/#why-no-shell-session), trust me.
-
-This makes it perfect as a baseline system and for a system that puts the language model (rather than
-the agent scaffold) in the middle of our attention.
-You can see the result on the [SWE-bench (bash only)](https://www.swebench.com/) leaderboard, that evaluates the performance of different LMs with `mini`.
-
-</details>
-
-<details>
-<summary>More motivation (as a tool)</summary>
-
-Some agents are overfitted research artifacts. Others are UI-heavy frontend monsters.
-
-The `mini` agent wants to be a hackable tool, not a black box.
-
-- **Simple** enough to understand at a glance
-- **Convenient** enough to use in daily workflows
-- **Flexible** to extend
-
-Unlike other agents (including our own [swe-agent](https://swe-agent.com/latest/)), it is radically simpler, because it:
-
-- **Does not have any tools other than bash** — it doesn't even need to use the tool-calling interface of the LMs.
-  Instead of implementing custom tools for every specific thing the agent might want to do, the focus is fully on the LM utilizing the shell to its full potential.
-  Want it to do something specific like opening a PR?
-  Just tell the LM to figure it out rather than spending time to implement it in the agent.
-- **Executes actions with `subprocess.run`** — every action is completely independent (as opposed to keeping a stateful shell session running).
-  This is [a big deal](https://mini-swe-agent.com/latest/faq/#why-no-shell-session) for the stability of the agent, trust me.
-- **Has a completely linear history** — every step of the agent just appends to the messages that are passed to the LM in the next step and that's it.
-  This is great for debugging and understanding what the LM is prompted with.
-
-</details>
-
-<details>
-<summary>Should I use SWE-agent or mini-SWE-agent?</summary>
-
-You should consider `mini-swe-agent` your default choice.
-In particular, you should use `mini-swe-agent` if
-
-- You want a quick command line tool that works locally
-- You want an agent with a very simple control flow
-- You want even faster, simpler & more stable sandboxing & benchmark evaluations
-- You are doing FT or RL and don't want to overfit to a specific agent scaffold
-
-You should use `swe-agent` if
-
-- You want to experiment with different sets of tools, each with their own interface
-- You want to experiment with different history processors
-
-What you get with both
-
-- Excellent performance on SWE-Bench
-- A trajectory browser
-
-</details>
-
-<details>
-<summary>What's new in the <b>mitg</b> edition? [mitg]</summary>
-
-The `mitg` fork keeps the upstream agent untouched where it already works, and adds the
-systems that were missing for everyday use. Each addition is minimal and isolated:
-
-- **Internationalization (i18n).** A zero-dependency JSON-catalog system (`minisweagent/i18n`).
-  The CLI detects the system language on startup; a Chinese (`zh`) catalog ships by default,
-  and English strings are used verbatim as the fallback. All user-facing text (banners, prompts,
-  confirmations, help) is localized.
-- **`/undo` — revert the last action.** A new `UndoRequested` exception lets you undo the most
-  recently executed step (including its accounting) and re-prompt, instead of redoing the whole run.
-- **Session resume.** On launch without an explicit task, the CLI restores the last *unfinished*
-  run directly from its trajectory file (`last_mini_run.traj.json`) — full conversation context is
-  preserved, so you continue exactly where you left off.
-- **Dynamic `.env` + primary/fallback keys.** The global config is re-loaded at runtime, and a
-  `*_FALLBACK` variant of any key/model name is used automatically when the primary is unset.
-  Startup prints the active key values (model names in full; secrets masked).
-- **Faster startup.** LiteLLM's import-time telemetry is disabled before the model is imported,
-  cutting cold-start time noticeably (~37% in local measurements).
+- **Internationalization (i18n).** A zero-dependency JSON-catalog system (`minisweagent/i18n`). The CLI detects the system language on startup; a Chinese (`zh`) catalog ships by default, and English strings are used verbatim as the fallback. All user-facing text (banners, prompts, confirmations, help) is localized.
+- **`/undo` — revert the last action.** A new `UndoRequested` exception lets you undo the most recently executed step (including its accounting) and re-prompt, instead of redoing the whole run.
+- **Session resume.** On launch without an explicit task, the CLI restores the last *unfinished* run directly from its trajectory file (`last_mini_run.traj.json`) — full conversation context is preserved, so you continue exactly where you left off.
+- **Dynamic `.env` + primary/fallback keys.** The global config is re-loaded at runtime, and a `*_FALLBACK` variant of any key/model name is used automatically when the primary is unset. Startup prints the active key values (model names in full; secrets masked).
+- **Faster startup.** LiteLLM's import-time telemetry is disabled before the model is imported, cutting cold-start time noticeably (~37% in local measurements).
 - Version is bumped to **`2.4.6+mitg`**.
 
-</details>
+### Getting started
 
-<table>
-<tr>
-<td width="50%">
-<a href="https://mini-swe-agent.com/latest/usage/mini/"><strong>CLI</strong></a> (<code>mini</code>)
-</td>
-<td>
-<a href="https://mini-swe-agent.com/latest/usage/swebench/"><strong>Batch inference</strong></a>
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-![mini](https://github.com/SWE-agent/swe-agent-media/blob/main/media/mini/gif/mini.gif?raw=true)
-
-</td>
-<td>
-
-![swebench](https://github.com/SWE-agent/swe-agent-media/blob/main/media/mini/gif/swebench.gif?raw=true)
-
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://mini-swe-agent.com/latest/usage/inspector/"><strong>Trajectory browser</strong></a>
-</td>
-<td>
-<a href="https://mini-swe-agent.com/latest/advanced/cookbook/"><strong>Python bindings</strong></a>
-</td>
-</tr>
-<tr>
-<td>
-
-![inspector](https://github.com/SWE-agent/swe-agent-media/blob/main/media/mini/gif/inspector.gif?raw=true)
-
-</td>
-<td>
-
-```python
-agent = DefaultAgent(
-    LitellmModel(model_name=...),
-    LocalEnvironment(),
-)
-agent.run("Write a sudoku game")
-```
-
-</td>
-</tr>
-</table>
-
-## Let's get started!
-
-**Option 1:** If you just want to try out the CLI (package installed in anonymous virtual environment)
+We recommend installing from source with the system **uv** tool (developer mode):
 
 ```bash
-pip install uv && uvx mini-swe-agent
-# or
-pip install pipx && pipx ensurepath && pipx run mini-swe-agent
-```
-
-**Option 2:** Install CLI & python bindings in current environment
-
-```bash
-pip install mini-swe-agent
-mini  # run the CLI
-```
-
-**Option 3:** Install from source (developer setup) — **mitg** edition
-
-```bash
+# 1. Clone the repository
 git clone https://github.com/wangzheruoyun/mini-swe-agent-mitg.git
-cd mini-swe-agent-mitg && pip install -e .
-mini  # run the CLI
+cd mini-swe-agent-mitg
+
+# 2. Install with uv (editable)
+uv pip install -e .
+
+# 3. Run the CLI
+mini
 ```
+
+> You may also use `uv tool install . --force` to install it as a standalone tool, or install the published package via `pip` following the upstream docs.
 
 Read more in our [documentation](https://mini-swe-agent.com/latest/):
 
@@ -212,6 +132,8 @@ Read more in our [documentation](https://mini-swe-agent.com/latest/):
 * [Power up with the cookbook](https://mini-swe-agent.com/latest/advanced/cookbook/)
 * [FAQ](https://mini-swe-agent.com/latest/faq/)
 * [Contribute!](https://mini-swe-agent.com/latest/contributing/)
+
+---
 
 ## Attribution
 
