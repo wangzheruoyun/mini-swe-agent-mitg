@@ -24,3 +24,11 @@ class UserInterruption(InterruptAgentFlow):
 
 class FormatError(InterruptAgentFlow):
     """Raised when the LM's output is not in the expected format."""
+
+
+class UndoRequested(InterruptAgentFlow):
+    """Raised when the user requests to undo the last executed action (``/undo``).
+
+    The agent captures it, rewinds the last executed action and its related
+    conversation turns, and then continues the run.
+    """

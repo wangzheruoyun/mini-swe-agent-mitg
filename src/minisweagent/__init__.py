@@ -8,7 +8,7 @@ This file provides:
   unless you want the static type checking.
 """
 
-__version__ = "2.4.6"
+__version__ = "2.4.6+mitg"
 
 import os
 from pathlib import Path
@@ -27,12 +27,11 @@ global_config_dir = Path(os.getenv("MSWEA_GLOBAL_CONFIG_DIR") or user_config_dir
 global_config_dir.mkdir(parents=True, exist_ok=True)
 global_config_file = Path(global_config_dir) / ".env"
 
-if not os.getenv("MSWEA_SILENT_STARTUP"):
-    Console().print(
-        f"This is [bold green]mini-swe-agent[/bold green] version [bold green]{__version__}[/bold green].\n"
-        f"Check the [bold red]v2 migration guide[/] at [bold red]https://klieret.short.gy/mini-v2-migration[/]\n"
-        f"Loading global config from [bold green]'{global_config_file}'[/bold green]",
-    )
+# NOTE: The startup banner is intentionally NOT printed here. It is emitted by
+# ``minisweagent.run.utilities.startup.bootstrap()`` (the first action of the
+# ``mini`` CLI) so it can be localized to the system language detected at runtime.
+# Printing it at import time would force an English banner regardless of locale,
+# which contradicts the "startup must switch to the system language" requirement.
 dotenv.load_dotenv(dotenv_path=global_config_file)
 
 

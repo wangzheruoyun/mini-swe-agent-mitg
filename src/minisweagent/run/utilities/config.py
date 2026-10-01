@@ -15,7 +15,9 @@ from rich.console import Console
 from rich.rule import Rule
 from typer import Argument, Typer
 
-from minisweagent import global_config_file
+from minisweagent import global_config_file, i18n
+
+_ = i18n.t
 
 
 def _reload_config():
@@ -31,7 +33,7 @@ app = Typer(
 console = Console(highlight=False)
 
 
-_SETUP_HELP = """To get started, we need to set up your global config file.
+_SETUP_HELP = _("""To get started, we need to set up your global config file.
 
 You can edit it manually or use the [bold green]mini-extra config set[/bold green] or [bold green]mini-extra config edit[/bold green] commands.
 
@@ -49,7 +51,7 @@ Here's a few popular models and the required API keys:
 
 More information at https://mini-swe-agent.com/latest/quickstart/
 To find the best model, check the leaderboard at https://swebench.com/
-"""
+""")
 
 
 def prompt(*args, **kwargs):
@@ -69,30 +71,30 @@ def configure_if_first_time():
 @app.command()
 def setup():
     """Setup the global config file."""
-    console.print(_SETUP_HELP.format(global_config_file=global_config_file))
+    console.print(_(_SETUP_HELP).format(global_config_file=global_config_file))
     default_model = prompt(
-        "Enter your default model (e.g., anthropic/claude-opus-4-6-20260205): ",
+        _("Enter your default model (e.g., anthropic/claude-opus-4-6-20260205): "),
         default=os.getenv("MSWEA_MODEL_NAME", ""),
     ).strip()
     if default_model:
         set_key(global_config_file, "MSWEA_MODEL_NAME", default_model)
     console.print(
-        "[bold yellow]If you already have your API keys set as environment variables, you can ignore the next question.[/bold yellow]"
+        _("[bold yellow]If you already have your API keys set as environment variables, you can ignore the next question.[/bold yellow]")
     )
-    key_name = prompt("Enter your API key name (e.g., ANTHROPIC_API_KEY): ").strip()
+    key_name = prompt(_("Enter your API key name (e.g., ANTHROPIC_API_KEY): ")).strip()
     key_value = None
     if key_name:
-        key_value = prompt("Enter your API key value (e.g., sk-1234567890): ", default=os.getenv(key_name, "")).strip()
+        key_value = prompt(_("Enter your API key value (e.g., sk-1234567890): "), default=os.getenv(key_name, "")).strip()
         if key_value:
             set_key(global_config_file, key_name, key_value)
     if not key_value:
         console.print(
-            "[bold red]API key setup not completed.[/bold red] Totally fine if you have your keys as environment variables."
+            _("[bold red]API key setup not completed.[/bold red] Totally fine if you have your keys as environment variables.")
         )
     set_key(global_config_file, "MSWEA_CONFIGURED", "true")
     _reload_config()
     console.print(
-        "\n[bold yellow]Config finished.[/bold yellow] If you want to revisit it, run [bold green]mini-extra config setup[/bold green]."
+        _("\n[bold yellow]Config finished.[/bold yellow] If you want to revisit it, run [bold green]mini-extra config setup[/bold green].")
     )
 
 
@@ -103,9 +105,9 @@ def set(
 ):
     """Set a key in the global config file."""
     if key is None:
-        key = prompt("Enter the key to set: ")
+        key = prompt(_("Enter the key to set: "))
     if value is None:
-        value = prompt(f"Enter the value for {key}: ")
+        value = prompt(_("Enter the value for {key}: ").format(key=key))
     set_key(global_config_file, key, value)
     _reload_config()
 
@@ -114,7 +116,7 @@ def set(
 def unset(key: str | None = Argument(None, help="The key to unset")):
     """Unset a key in the global config file."""
     if key is None:
-        key = prompt("Enter the key to unset: ")
+        key = prompt(_("Enter the key to unset: "))
     unset_key(global_config_file, key)
     _reload_config()
 

@@ -103,7 +103,7 @@ where = ["src"]
 include = ["minisweagent*"]
 
 [tool.setuptools.package-data]
-minisweagent = ["config/**/*"]
+minisweagent = ["config/**/*", "i18n/locales/*.json"]
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

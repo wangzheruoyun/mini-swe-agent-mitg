@@ -2,19 +2,22 @@
 <a href="https://mini-swe-agent.com/latest/"><img src="https://github.com/SWE-agent/mini-swe-agent/raw/main/docs/assets/mini-swe-agent-banner.svg" alt="mini-swe-agent banner" style="height: 7em"/></a>
 </div>
 
-# The minimal AI software engineering agent
+# The minimal AI software engineering agent — **mitg** edition
 
 📣 [mini-swe-agent now powers Ramp SWE-Bench](https://labs.ramp.com/swebench)<br/>
 📣 [mini-swe-agent beats Claude Code and Codex on DeepSWE](https://deepswe.datacurve.ai/blog#evaluation-harness)<br/>
 📣 [Run mini-swe-agent on our new & extremely challenging benchmark, ProgramBench](https://mini-swe-agent.com/latest/usage/programbench/)<br/>
-📣 [New tutorial on building minimal AI agents](https://minimal-agent.com/)
+📣 **This fork (`mitg`) adds: 中文界面、会话续跑、撤回 (/undo)、动态 `.env`、主副 key、LiteLLM 启动加速。**
 
 [![Docs](https://img.shields.io/badge/Docs-green?style=for-the-badge&logo=materialformkdocs&logoColor=white)](https://mini-swe-agent.com/latest/)
 [![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://join.slack.com/t/swe-bench/shared_invite/zt-36pj9bu5s-o3_yXPZbaH2wVnxnss1EkQ)
 [![PyPI - Version](https://img.shields.io/pypi/v/mini-swe-agent?style=for-the-badge&logo=python&logoColor=white&labelColor=black&color=deeppink)](https://pypi.org/project/mini-swe-agent/)
 
-> [!WARNING]
-> This is **mini-swe-agent v2**. Read the [migration guide](https://mini-swe-agent.com/latest/advanced/v2_migration/). For the previous version, check out the [v1 branch](https://github.com/SWE-agent/mini-swe-agent/tree/v1).
+> [!NOTE]
+> This is **mini-swe-agent v2 (`2.4.6+mitg`)**, a maintained fork that layers a set of
+> production-oriented improvements on top of upstream v2 without changing its core design.
+> Everything below that is not explicitly marked **[mitg]** is inherited from upstream
+> [SWE-agent/mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent).
 
 In 2024, we built [SWE-bench](https://github.com/swe-bench/SWE-bench) & [SWE-agent](https://github.com/swe-agent/swe-agent) and helped kickstart the coding agent revolution.
 
@@ -102,6 +105,30 @@ What you get with both
 
 </details>
 
+<details>
+<summary>What's new in the <b>mitg</b> edition? [mitg]</summary>
+
+The `mitg` fork keeps the upstream agent untouched where it already works, and adds the
+systems that were missing for everyday use. Each addition is minimal and isolated:
+
+- **Internationalization (i18n).** A zero-dependency JSON-catalog system (`minisweagent/i18n`).
+  The CLI detects the system language on startup; a Chinese (`zh`) catalog ships by default,
+  and English strings are used verbatim as the fallback. All user-facing text (banners, prompts,
+  confirmations, help) is localized.
+- **`/undo` — revert the last action.** A new `UndoRequested` exception lets you undo the most
+  recently executed step (including its accounting) and re-prompt, instead of redoing the whole run.
+- **Session resume.** On launch without an explicit task, the CLI restores the last *unfinished*
+  run directly from its trajectory file (`last_mini_run.traj.json`) — full conversation context is
+  preserved, so you continue exactly where you left off.
+- **Dynamic `.env` + primary/fallback keys.** The global config is re-loaded at runtime, and a
+  `*_FALLBACK` variant of any key/model name is used automatically when the primary is unset.
+  Startup prints the active key values (model names in full; secrets masked).
+- **Faster startup.** LiteLLM's import-time telemetry is disabled before the model is imported,
+  cutting cold-start time noticeably (~37% in local measurements).
+- Version is bumped to **`2.4.6+mitg`**.
+
+</details>
+
 <table>
 <tr>
 <td width="50%">
@@ -168,11 +195,11 @@ pip install mini-swe-agent
 mini  # run the CLI
 ```
 
-**Option 3:** Install from source (developer setup)
+**Option 3:** Install from source (developer setup) — **mitg** edition
 
 ```bash
-git clone https://github.com/SWE-agent/mini-swe-agent.git
-cd mini-swe-agent && pip install -e .
+git clone https://github.com/wangzheruoyun/mini-swe-agent-mitg.git
+cd mini-swe-agent-mitg && pip install -e .
 mini  # run the CLI
 ```
 
@@ -208,10 +235,10 @@ Our other projects:
   <a href="https://github.com/SWE-agent/SWE-ReX"><img src="https://raw.githubusercontent.com/SWE-agent/swe-agent-media/refs/heads/main/media/logos_banners/swerex_logo_text_below.svg" alt="SWE-ReX" height="120px"></a>
    &nbsp;&nbsp;
   <a href="https://github.com/SWE-bench/SWE-bench"><img src="https://raw.githubusercontent.com/SWE-agent/swe-agent-media/refs/heads/main/media/logos_banners/swebench_logo_text_below.svg" alt="SWE-bench" height="120px"></a>
-  &nbsp;&nbsp;
+   &nbsp;&nbsp;
   <a href="https://github.com/SWE-bench/SWE-smith"><img src="https://raw.githubusercontent.com/SWE-agent/swe-agent-media/refs/heads/main/media/logos_banners/swesmith_logo_text_below.svg" alt="SWE-smith" height="120px"></a>
-  &nbsp;&nbsp;
+   &nbsp;&nbsp;
   <a href="https://github.com/codeclash-ai/codeclash"><img src="https://raw.githubusercontent.com/SWE-agent/swe-agent-media/refs/heads/main/media/logos_banners/codeclash_logo_text_below.svg" alt="CodeClash" height="120px"></a>
-  &nbsp;&nbsp;
+   &nbsp;&nbsp;
   <a href="https://github.com/SWE-bench/sb-cli"><img src="https://raw.githubusercontent.com/SWE-agent/swe-agent-media/refs/heads/main/media/logos_banners/sbcli_logo_text_below.svg" alt="sb-cli" height="120px"></a>
 </div>

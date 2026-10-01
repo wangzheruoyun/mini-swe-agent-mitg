@@ -40,6 +40,7 @@ class DefaultAgent:
         """See the `AgentConfig` class for permitted keyword arguments."""
         self.config = config_class(**kwargs)
         self.messages: list[dict] = []
+        self._resumed: bool = False
         self.model = model
         self.env = env
         self.extra_template_vars = {}
@@ -88,11 +89,17 @@ class DefaultAgent:
     def run(self, task: str = "", **kwargs) -> dict:
         """Run step() until agent is finished. Returns dictionary with exit_status, submission keys."""
         self.extra_template_vars |= {"task": task, **kwargs}
-        self.messages = []
-        self.add_messages(
-            self.model.format_message(role="system", content=self._render_template(self.config.system_template)),
-            self.model.format_message(role="user", content=self._render_template(self.config.instance_template)),
-        )
+        if self._resumed:
+            # Resumed run: keep the restored conversation and continue from where
+            # it left off. Do NOT reset messages or re-add the system/user prompt,
+            # otherwise we'd lose all prior context and effectively restart.
+            self._resumed = False
+        else:
+            self.messages = []
+            self.add_messages(
+                self.model.format_message(role="system", content=self._render_template(self.config.system_template)),
+                self.model.format_message(role="user", content=self._render_template(self.config.instance_template)),
+            )
         while True:
             try:
                 self.step()
@@ -122,6 +129,34 @@ class DefaultAgent:
             if self.messages[-1].get("role") == "exit":
                 break
         return self.messages[-1].get("extra", {})
+
+    @classmethod
+    def resume(cls, trajectory_path: Path | str, model: "Model", env: "Environment", **kwargs) -> "DefaultAgent":
+        """Resume an unfinished run from a saved trajectory file.
+
+        Reconstructs the conversation history from the trajectory's ``messages``
+        (so the agent continues exactly where it left off, including the original
+        task framing) and continues running. This is the mechanism behind the
+        "resume last unfinished task" feature.
+        """
+        import json as _json
+
+        data = _json.loads(Path(trajectory_path).read_text(encoding="utf-8"))
+        messages = data.get("messages", [])
+        # Recover the config that was in effect for that run, if recorded.
+        saved_config = (
+            data.get("info", {}).get("config", {}).get("agent", {})
+        )
+        config = {**saved_config, **kwargs}
+        agent = cls(model, env, **config)
+        # Restore the message history verbatim (already fully rendered).
+        agent.messages = list(messages)
+        agent._resumed = True
+        # Recover accounting so limits behave consistently with the original run.
+        info = data.get("info", {})
+        agent.cost = info.get("model_stats", {}).get("instance_cost", agent.cost) or agent.cost
+        agent.n_calls = info.get("model_stats", {}).get("api_calls", agent.n_calls) or agent.n_calls
+        return agent
 
     def step(self) -> list[dict]:
         """Query the LM, execute actions."""
