@@ -40,6 +40,18 @@ def _mask_secret(key: str, value: str) -> str:
     return value
 
 
+def _eager_load_model_engine() -> None:
+    """Proactively import the heavy model engine (litellm) once.
+
+    The first import of litellm is the single slowest part of startup (several
+    seconds, with no output) and is otherwise triggered lazily inside
+    ``get_model`` -- which made startup look frozen. Importing it here, behind a
+    progress indicator, both surfaces that the program is working and ensures the
+    cost is paid only once (subsequent imports hit the module cache).
+    """
+    import litellm  # noqa: F401  (side-effect: warm up the import)
+
+
 def bootstrap() -> dict[str, Any]:
     """Run all startup concerns. Returns a small context dict for callers."""
     # 0. Performance: Litellm's import-time telemetry/network checks make startup
@@ -77,7 +89,21 @@ def bootstrap() -> dict[str, Any]:
             else:
                 console.print(_("No key set for ({key}); fallback unavailable.").format(key=key))
 
-    # 4. Banner.
+    # 4. Eagerly warm up the (heavy, silent) model engine behind a progress
+    #    indicator, so startup doesn't look frozen during the long import.
+    if os.getenv("MSWEA_SILENT_STARTUP"):
+        _eager_load_model_engine()
+    elif console.is_terminal:
+        # Interactive terminal: show an animated spinner.
+        with console.status(_("Initializing model engine (this may take a moment)...")):
+            _eager_load_model_engine()
+    else:
+        # Non-terminal (piped/redirected): spinner wouldn't render, so print a
+        # static progress line instead so the run still looks alive.
+        console.print(_("Initializing model engine (this may take a moment)..."))
+        _eager_load_model_engine()
+
+    # 5. Banner.
     if not os.getenv("MSWEA_SILENT_STARTUP"):
         console.print(
             _("This is [bold green]mini-swe-agent[/bold green] version [bold green]{version}[/bold green].\n"

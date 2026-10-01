@@ -67,5 +67,6 @@
   "Resuming last session from trajectory file.": "正在根据轨迹文件恢复上次会话。",
   "Detected a previous session trajectory file:": "检测到上一次会话的轨迹文件：",
   "Load this trajectory file and continue?": "是否加载该轨迹文件并继续？",
-  "Primary key failed ({error}); switching to fallback key.": "主密钥失败（{error}）；正在切换到备用密钥。"
+  "Primary key failed ({error}); switching to fallback key.": "主密钥失败（{error}）；正在切换到备用密钥。",
+  "Initializing model engine (this may take a moment)...": "正在初始化模型引擎（可能需要一些时间）……"
 }
