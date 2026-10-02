@@ -25,6 +25,11 @@ from minisweagent import __version__, global_config_file, i18n
 from minisweagent.run.utilities.env import apply_key_fallback, key_status, reload_dotenv
 from minisweagent.run.utilities.session import load_session
 
+try:
+    from minisweagent.run.utilities.progress import StartupProgress
+except Exception:  # pragma: no cover
+    StartupProgress = None
+
 console = Console(highlight=False)
 _ = i18n.t
 
@@ -52,8 +57,13 @@ def _eager_load_model_engine() -> None:
     import litellm  # noqa: F401  (side-effect: warm up the import)
 
 
-def bootstrap() -> dict[str, Any]:
-    """Run all startup concerns. Returns a small context dict for callers."""
+def bootstrap(progress: "StartupProgress | None" = None) -> dict[str, Any]:
+    """Run all startup concerns. Returns a small context dict for callers.
+
+    If ``progress`` is provided, startup stages are reported to it so a real
+    percentage progress bar can be shown (instead of a silent, seemingly frozen
+    startup).
+    """
     # 0. Performance: Litellm's import-time telemetry/network checks make startup
     #    slow. Disable them (idempotent -- only set when unset) before litellm is
     #    first imported by the model layer.
@@ -62,20 +72,33 @@ def bootstrap() -> dict[str, Any]:
     # 1. System language: detect the OS locale, then apply the user's preferred
     #    rule -- Chinese systems use Chinese directly; English/other systems are
     #    asked whether to switch to Chinese (defaulting to yes).
+    if progress is not None:
+        progress.stage("Detecting language")
+    # The interactive "switch to Chinese?" prompt cannot share the terminal
+    # with the live progress bar, so we pause the bar (preserving its state)
+    # and resume immediately after.
+    if progress is not None:
+        progress.pause()
     lang = i18n.choose_language()
-    if not os.getenv("MSWEA_SILENT_STARTUP"):
+    if progress is not None:
+        progress.resume()
+    if progress is None and not os.getenv("MSWEA_SILENT_STARTUP"):
         console.print(_("Reading system language: [bold green]{lang}[/bold green]").format(lang=lang))
 
     # 2. Dynamic .env reload (so edits are picked up without a restart).
     reload_dotenv()
-    if not os.getenv("MSWEA_SILENT_STARTUP"):
+    if progress is not None:
+        progress.stage("Loading environment")
+    if progress is None and not os.getenv("MSWEA_SILENT_STARTUP"):
         console.print(
             _("Dynamic environment loaded from [bold green]'{path}'[/bold green]").format(path=global_config_file)
         )
 
     # 3. Primary/fallback key resolution + status reporting.
     applied = apply_key_fallback()
-    if not os.getenv("MSWEA_SILENT_STARTUP"):
+    if progress is not None:
+        progress.stage("Resolving keys")
+    if progress is None and not os.getenv("MSWEA_SILENT_STARTUP"):
         for key, info in key_status().items():
             value = os.getenv(key) or os.getenv(f"{key}_FALLBACK") or ""
             # Mask secret-like values; show model names in full.
@@ -89,31 +112,27 @@ def bootstrap() -> dict[str, Any]:
             else:
                 console.print(_("No key set for ({key}); fallback unavailable.").format(key=key))
 
-    # 4. Eagerly warm up the (heavy, silent) model engine behind a progress
-    #    indicator, so startup doesn't look frozen during the long import.
+    # 4. Eagerly warm up the (heavy, silent) model engine. This is the single
+    #    slowest part of startup; it is tracked on the progress bar so the
+    #    percentage keeps moving instead of the program looking frozen.
     if os.getenv("MSWEA_SILENT_STARTUP"):
         _eager_load_model_engine()
-    elif console.is_terminal:
-        # Interactive terminal: show an animated spinner.
-        with console.status(_("Initializing model engine (this may take a moment)...")):
-            _eager_load_model_engine()
+    elif progress is not None:
+        progress.run_engine_init(_eager_load_model_engine)
     else:
-        # Non-terminal (piped/redirected): spinner wouldn't render, so print a
-        # static progress line instead so the run still looks alive.
-        console.print(_("Initializing model engine (this may take a moment)..."))
         _eager_load_model_engine()
 
-    # 5. Banner.
+    # 5. Banner (built here, but printed by the caller *after* the progress bar
+    #    has stopped, so it never collides with the live bar's terminal lines).
+    banner = ""
     if not os.getenv("MSWEA_SILENT_STARTUP"):
-        console.print(
-            _("This is [bold green]mini-swe-agent[/bold green] version [bold green]{version}[/bold green].\n"
-              "Check the [bold red]v2 migration guide[/] at [bold red]https://klieret.short.gy/mini-v2-migration[/]\n"
-              "Loading global config from [bold green]'{config_file}'[/bold green]").format(
-                version=__version__, config_file=global_config_file
-            )
-        )
+        banner = _(
+            "This is [bold green]mini-swe-agent[/bold green] version [bold green]{version}[/bold green].\n"
+            "Check the [bold red]v2 migration guide[/] at [bold red]https://klieret.short.gy/mini-v2-migration[/]\n"
+            "Loading global config from [bold green]'{config_file}'[/bold green]"
+        ).format(version=__version__, config_file=global_config_file)
 
-    return {"language": lang, "fallback_keys": applied}
+    return {"language": lang, "fallback_keys": applied, "banner": banner}
 
 
 def resume_prompt() -> Path | None:

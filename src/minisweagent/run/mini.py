@@ -10,14 +10,15 @@ from typing import Any
 import typer
 from rich.console import Console
 
+# NOTE: Heavy modules (agents / models / environments) are imported lazily inside
+# ``main`` *after* the progress bar has started. Importing them at module level
+# pulls in litellm, whose import alone takes many seconds with no output and would
+# make startup look frozen *before* any progress UI can be shown.
 from minisweagent import global_config_dir, i18n
-from minisweagent.agents import get_agent
-from minisweagent.agents.utils.prompt_user import _multiline_prompt
 from minisweagent.config import builtin_config_dir, get_config_from_spec
-from minisweagent.environments import get_environment
-from minisweagent.models import get_model
 from minisweagent.run.utilities.config import configure_if_first_time
 from minisweagent.run.utilities.env import failover_model, is_failover_exception, reload_dotenv
+from minisweagent.run.utilities.progress import startup_progress
 from minisweagent.run.utilities.session import save_session
 from minisweagent.run.utilities.startup import bootstrap, resume_prompt
 from minisweagent.utils.serialize import UNSET, recursive_merge
@@ -70,8 +71,30 @@ def main(
 ) -> Any:
     # fmt: on
     # Cross-cutting startup concerns (language, dynamic env, key fallback, banner).
-    bootstrap()
+    # Show a real percentage progress bar that appears the instant we launch, so
+    # the (slow) model-engine import doesn't look like a freeze.
+    progress = None
+    if not os.getenv("MSWEA_SILENT_STARTUP"):
+        try:
+            progress = startup_progress()
+        except Exception:
+            progress = None
+    ctx = bootstrap(progress)
+    if progress is not None:
+        progress.finish()
+    # Print the localized banner now that the live progress bar has stopped, so
+    # it never collides with the bar's terminal output.
+    if banner := ctx.get("banner"):
+        console.print(banner)
     configure_if_first_time()
+
+    # Lazy import of the heavy agent/model/environment modules. This is what pulls
+    # in litellm; doing it here (after the progress bar is live) means the slow
+    # import is covered by the bar instead of happening silently at startup.
+    from minisweagent.agents import get_agent
+    from minisweagent.agents.utils.prompt_user import _multiline_prompt
+    from minisweagent.environments import get_environment
+    from minisweagent.models import get_model
 
     # Record the session so a later invocation can resume an unfinished run.
     save_session(output)

@@ -20,19 +20,6 @@ from minisweagent import i18n
 
 _ = i18n.t
 
-# Exceptions that indicate the *primary* key is rate-limited / unreachable and
-# that retrying with a fallback key is worth attempting.
-try:
-    import litellm
-
-    _FAILOVER_EXCEPTIONS = (
-        litellm.exceptions.RateLimitError,
-        litellm.exceptions.APIConnectionError,
-        litellm.exceptions.ServiceUnavailableError,
-        litellm.exceptions.APIError,
-    )
-except Exception:  # pragma: no cover - litellm always present
-    _FAILOVER_EXCEPTIONS = ()
 
 
 def reload_dotenv(path: str | os.PathLike[str] | None = None) -> None:
@@ -144,6 +131,33 @@ def failover_model(model_config: dict | None = None) -> object | None:
     return get_model(config=model_config)
 
 
+_FAILOVER_EXCEPTIONS: tuple[type[BaseException], ...] | None = None
+
+
+def _failover_exceptions() -> tuple[type[BaseException], ...]:
+    """Lazily import litellm only when a failover decision is actually needed.
+
+    Importing litellm at module top-level costs several seconds and was pulled
+    in transitively by ``mini``'s top-level ``from .env import ...``, which made
+    the startup progress bar appear *after* the freeze instead of during it.
+    Defer the import to first use (and cache it) so the bar can cover it.
+    """
+    global _FAILOVER_EXCEPTIONS
+    if _FAILOVER_EXCEPTIONS is None:
+        try:
+            import litellm
+
+            _FAILOVER_EXCEPTIONS = (
+                litellm.exceptions.RateLimitError,
+                litellm.exceptions.APIConnectionError,
+                litellm.exceptions.ServiceUnavailableError,
+                litellm.exceptions.APIError,
+            )
+        except Exception:  # pragma: no cover - litellm always present
+            _FAILOVER_EXCEPTIONS = ()
+    return _FAILOVER_EXCEPTIONS
+
+
 def is_failover_exception(exc: BaseException) -> bool:
     """Whether ``exc`` is one we should retry against the fallback key."""
-    return isinstance(exc, _FAILOVER_EXCEPTIONS)
+    return isinstance(exc, _FAILOVER_EXCEPTIONS())
