@@ -44,7 +44,7 @@
 - **`/undo` 撤回**：新增 `UndoRequested` 异常，可撤销最近一次已执行的步骤（含其计费与成本统计）并重新提示，无需重跑整个任务。
 - **会话续跑**：未显式指定任务启动时，CLI 会直接从上次未完成任务对应的轨迹文件（`last_mini_run.traj.json`）恢复——检测到轨迹文件后会**询问是否加载**；确认后完整对话上下文得以保留，直接回到上次退出时的状态继续。
 - **动态 `.env` 与主副 key（运行时故障转移）**：每次启动重新加载全局配置（`.env` 的改动会在下次运行生效）；并支持**主副 key**——当主 key 被限速或不可达时，自动切换到 `*_FALLBACK` 备用 key 重试。启动时打印当前生效的 key 值（模型名完整显示，密钥脱敏）。
-- **更快启动**：在导入模型前禁用 LiteLLM 的导入期遥测，显著缩短冷启动时间（本地实测约降低 37%）。
+- **更快启动 + 实时进度条**：以往 LiteLLM 会在模块加载时被间接导入（约 10 秒无声卡顿，UI 才出现）。现已改为首次使用时懒加载，模块导入降至约 1.3 秒；并且 `mini` 一启动就显示真实百分比进度条，启动过程不再像卡死。
 - 版本号提升为 **`2.4.6+mitg`**。
 
 #### 使用副 key（主副 key） / Using a fallback (secondary) key
@@ -127,7 +127,7 @@ The `mitg` fork keeps the upstream agent untouched where it already works, and a
 - **`/undo` — revert the last action.** A new `UndoRequested` exception lets you undo the most recently executed step (including its accounting) and re-prompt, instead of redoing the whole run.
 - **Session resume.** On launch without an explicit task, the CLI restores the last *unfinished* run directly from its trajectory file (`last_mini_run.traj.json`) — when a trajectory file is detected you are **asked whether to load it**; on confirmation the full conversation context is preserved, so you continue exactly where you left off.
 - **Dynamic `.env` + primary/fallback keys (runtime failover).** The global config (`.env`) is re-loaded on every launch so edits take effect on the next run, and a **primary/fallback key** setup is supported: if the primary key is rate-limited or unreachable, the agent automatically switches to the `*_FALLBACK` key and retries. Startup prints the active key values (model names in full; secrets masked).
-- **Faster startup.** LiteLLM's import-time telemetry is disabled before the model is imported, cutting cold-start time noticeably (~37% in local measurements).
+- **Faster startup & a live progress bar.** LiteLLM used to be imported transitively at module load (~10 s of silent freeze before any UI appeared). It is now imported lazily (first use), cutting module-import time to ~1.3 s, and a real percentage progress bar is shown the instant `mini` launches so startup never looks frozen.
 - Version is bumped to **`2.4.6+mitg`**.
 
 #### Using a fallback (secondary) key
@@ -164,14 +164,17 @@ We recommend installing from source with the system **uv** tool (developer mode)
 git clone https://github.com/wangzheruoyun/mini-swe-agent-mitg.git
 cd mini-swe-agent-mitg
 
-# 2. Install with uv (editable)
+# 2. Create a virtual environment and install (editable)
+uv venv                 # create ./venv (once)
+source venv/bin/activate
 uv pip install -e .
 
 # 3. Run the CLI
 mini
 ```
 
-> You may also use `uv tool install . --force` to install it as a standalone tool, or install the published package via `pip` following the upstream docs.
+- `uv pip install -e .` requires an active virtual environment (or pass `--system` to install into the system Python). The `uv venv` step above is mandatory.
+- You may instead use `uv tool install . --force` to install `mini` as a standalone, isolated tool (this is *not* editable — reinstall after code changes). See the upstream docs for installing a published wheel via `pip`.
 
 Read more in our [documentation](https://mini-swe-agent.com/latest/):
 
